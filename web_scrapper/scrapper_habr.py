@@ -10,33 +10,42 @@ PATTERN = re.compile(
     re.IGNORECASE
 )
 
-BASE_URL = 'https://habr.com/ru/articles/page{page}/'
+BASE_URL = 'https://habr.com/ru/articles/page{page}/' # https://habr.com/ru/articles/page1/ и https://habr.com/ru/articles/ являются равнозначными
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                  '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+}
+TIMEOUT = 15
+MAX_PAGES = 50
 
 
 def get_soup(url):
     try:
-        response = requests.get(url)
+        response = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
         response.raise_for_status()
         return BS(response.text, 'html.parser')
     except requests.RequestException as e:
-        print('Ошибка при загрузке страницы:\n' + str(e))
+        print(f'Ошибка при загрузке страницы: {e}')
         return None
 
 
 def get_topics():
-    page = 1
-    while True:
+    for page in range(1, MAX_PAGES + 1):
         soup = get_soup(BASE_URL.format(page=page))
         if soup is None:
             break
 
         articles = soup.select('article.tm-articles-list__item')
         if not articles:
-            print(f'На странице {page} статьи не найдены — конец ленты.')
-            break
+            articles = soup.select('article[data-test-id="article"]')
+            if not articles:
+                print(f'На странице {page} статьи не найдены — конец ленты.')
+                break
 
         for article in articles:
             title_tag = article.select_one('a.tm-title__link')
+            if not title_tag:
+                title_tag = article.select_one('a[data-test-id="title-link"]')
             if not title_tag:
                 continue
 
@@ -51,8 +60,8 @@ def get_topics():
             if PATTERN.search(preview_text):
                 print(f'{date} – {title} – {href}')
 
-        page += 1
         time.sleep(1)
 
 
-get_topics()
+if __name__ == '__main__':
+    get_topics()
